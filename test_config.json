@@ -1,0 +1,90 @@
+{
+  "dataset": "direito_constitucional",
+  "description": "Conjunto de perguntas específicas para avaliar RAG com base nos artigos fornecidos sobre Direito Constitucional.",
+  "questions": [
+    {
+      "id": 1,
+      "question": "Quais foram as principais etapas metodológicas utilizadas na pesquisa de Juliano Zaiden Benvindo e colaboradores para mapear o estudo do Direito Constitucional Comparado no Brasil?",
+      "category": "procedural",
+      "expected_topics": ["mapeamento", "metodologia", "formulário", "Lattes", "fontes públicas", "Juliano Zaiden Benvindo"]
+    },
+    {
+      "id": 2,
+      "question": "Como o estudo sobre Direito Constitucional Comparado no Brasil classifica as iniciativas universitárias em três níveis de institucionalização?",
+      "category": "descriptive",
+      "expected_topics": ["níveis de institucionalização", "universidades", "pesquisa", "ensino", "Direito Constitucional Comparado"]
+    },
+    {
+      "id": 3,
+      "question": "Qual a distinção entre eutanásia, ortotanásia e distanásia, conforme apresentado no artigo sobre o tema à luz do direito constitucional?",
+      "category": "comparison",
+      "expected_topics": ["eutanásia", "ortotanásia", "distanásia", "boa morte", "prolongamento artificial", "sofrimento"]
+    },
+    {
+      "id": 4,
+      "question": "De acordo com o texto, como a legislação brasileira trata a eutanásia e qual a principal garantia fundamental que prevalece nesse contexto?",
+      "category": "legal_application",
+      "expected_topics": ["eutanásia", "legislação brasileira", "homicídio", "direito à vida", "Código Penal"]
+    },
+    {
+      "id": 5,
+      "question": "Como os artigos 231 (§2º e §6º) e 225 (§4º) da Constituição Federal são aplicados para combater a biopirataria na Amazônia, segundo o texto de Arcelino Leon e Rosalina Alves Nantes?",
+      "category": "relacional",
+      "expected_topics": ["biopirataria", "Amazônia", "Artigo 231", "Artigo 225", "Direito Constitucional Ecológico", "terras indígenas"]
+    },
+    {
+      "id": 6,
+      "question": "O que é o 'Banco da Amazônia de Códigos' e quais são as preocupações levantadas sobre essa iniciativa em relação à biopirataria digital?",
+      "category": "analytical",
+      "expected_topics": ["Banco da Amazônia de Códigos", "biopirataria digital", "recursos genéticos", "blockchain", "propriedade intelectual"]
+    },
+    {
+      "id": 7,
+      "question": "Qual é a fundamentação constitucional para a responsabilização civil por abandono afetivo, mencionando o artigo principal da Constituição e seus desdobramentos?",
+      "category": "conceptual_legal",
+      "expected_topics": ["abandono afetivo", "responsabilização civil", "Artigo 227", "dignidade da pessoa humana", "convivência familiar", "danos morais"]
+    },
+    {
+      "id": 8,
+      "question": "Segundo o artigo 'Semeando a democracia', por que a inclusão do ensino de Direito Constitucional na educação básica é considerada um dever e não apenas uma necessidade para a formação cidadã?",
+      "category": "argumentative",
+      "expected_topics": ["ensino básico", "Direito Constitucional", "formação cidadã", "democracia", "dever", "cidadania"]
+    },
+    {
+      "id": 9,
+      "question": "Explique a transição do paradigma antropocêntrico para o bioecocêntrico no direito, conforme discutido no artigo sobre o Antropoceno.",
+      "category": "paradigm_shift",
+      "expected_topics": ["Antropoceno", "antropocentrismo", "bioecocentrismo", "paradigma", "Direito Ecológico"]
+    },
+    {
+      "id": 10,
+      "question": "Qual o papel da 'Carta da Terra' na transição do Direito Constitucional Ambiental para o Direito Constitucional Ecológico?",
+      "category": "descriptive",
+      "expected_topics": ["Carta da Terra", "Direito Constitucional Ecológico", "responsabilidade universal", "paradigma", "sustentabilidade"]
+    }
+  ],
+  "evaluation_criteria": {
+    "factual_consistency": {
+      "weight": 0.25,
+      "description": "Consistência factual entre resposta e contexto recuperado"
+    },
+    "instruction_following": {
+      "weight": 0.15,
+      "description": "Aderência ao formato solicitado"
+    },
+    "domain_knowledge": {
+      "weight": 0.20,
+      "description": "Uso correto de terminologia jurídica específica"
+    },
+    "context_precision": {
+      "weight": 0.20,
+      "description": "Relevância dos chunks recuperados"
+    },
+    "context_recall": {
+      "weight": 0.20,
+      "description": "Completude da informação recuperada"
+    }
+  },
+  "ai_judge_model": "gemini-2.5-pro",
+  "ai_judge_temperature": 0.1
+}
