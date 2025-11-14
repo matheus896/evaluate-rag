@@ -85,6 +85,6 @@
       "description": "Completude da informação recuperada"
     }
   },
-  "ai_judge_model": "gemini-2.5-pro",
+  "ai_judge_model": "cerebras/gpt-oss-120b",
   "ai_judge_temperature": 0.1
 }

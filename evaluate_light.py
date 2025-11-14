@@ -11,8 +11,6 @@ import logging
 from datetime import datetime
 from typing import Dict, List, Any
 from dotenv import load_dotenv
-from google import genai
-from google.genai import types
 
 # Importar os sistemas RAG
 from file_search_rag import ask_question as file_search_ask
@@ -23,6 +21,9 @@ from generation import Generation
 # Importar módulos de refatoração
 from report_generator import EvaluationReportGenerator
 from console_presenter import ConsolePresenter
+
+# Importar AI Judge com LiteLLM
+from ai_judge import AIJudge
 
 load_dotenv()
 
@@ -62,8 +63,8 @@ class LightRAGEvaluator:
         if not config_loaded:
             raise ValueError(f"❌ Não foi possível carregar {config_path}")
         
-        # Inicializar cliente AI Judge
-        self.judge_client = genai.Client(api_key=os.getenv("GOOGLE_API_KEY"))
+        # Inicializar AI Judge com LiteLLM (agnóstico de provider)
+        self.judge = AIJudge(config_path=config_path)
         
         # Inicializar RAG Manual
         self.retriever = Retriever(collection_name=self.config['dataset'])
@@ -129,93 +130,6 @@ class LightRAGEvaluator:
             "grounding_info": grounding_info  
         }
     
-    def create_judge_prompt(self, question: str, context: str, answer: str) -> str:
-        """Cria prompt para AI Judge."""
-        return f"""Você é um avaliador especialista em sistemas RAG no domínio jurídico.
-
-Avalie a qualidade da resposta segundo os critérios abaixo, usando escala de 1 a 5:
-
-**PERGUNTA:**
-{question}
-
-**CONTEXTO RECUPERADO (5 CHUNKS):**
-{context}
-
-**RESPOSTA GERADA:**
-{answer}
-
-**CRITÉRIOS (1-5):**
-1. **Consistência Factual:** Resposta baseada no contexto? Há alucinações?
-2. **Seguir Instruções:** Responde o que foi pedido?
-3. **Conhecimento Jurídico:** Usa terminologia correta?
-4. **Precisão do Contexto:** Contexto é relevante?
-5. **Cobertura do Contexto:** Contexto tem todas as informações necessárias?
-
-**RESPONDA EM JSON:**
-{{
-  "factual_consistency": {{"score": <1-5>, "justification": "..."}},
-  "instruction_following": {{"score": <1-5>, "justification": "..."}},
-  "domain_knowledge": {{"score": <1-5>, "justification": "..."}},
-  "context_precision": {{"score": <1-5>, "justification": "..."}},
-  "context_recall": {{"score": <1-5>, "justification": "..."}},
-  "overall_assessment": "resumo geral em 1-2 frases"
-}}"""
-    
-    def judge_response(self, question: str, context: str, answer: str, system_name: str) -> Dict[str, Any]:
-        """Avalia resposta com AI Judge (com retry em caso de erro 503)."""
-        logging.info(f"⚖️  Avaliando {system_name} com AI Judge...")
-        
-        prompt = self.create_judge_prompt(question, context, answer)
-        
-        max_retries = 3
-        retry_delay = 5  # segundos
-        
-        for attempt in range(max_retries):
-            try:
-                response = self.judge_client.models.generate_content(
-                    model=self.config['ai_judge_model'],
-                    contents=prompt,
-                    config=types.GenerateContentConfig(
-                        temperature=self.config['ai_judge_temperature']
-                    )
-                )
-                
-                response_text = (response.text or "").strip()
-                
-                # Limpar markdown
-                if response_text.startswith('```json'):
-                    response_text = response_text[7:-3]
-                elif response_text.startswith('```'):
-                    response_text = response_text[3:-3]
-                
-                evaluation = json.loads(response_text)
-                logging.info(f"✅ Avaliação de {system_name} concluída")
-                return evaluation
-            
-            except Exception as e:
-                error_msg = str(e)
-                
-                if '503' in error_msg or 'overloaded' in error_msg.lower():
-                    if attempt < max_retries - 1:
-                        logging.warning(f"⚠️  Modelo sobrecarregado. Tentativa {attempt + 1}/{max_retries}. Aguardando {retry_delay}s...")
-                        time.sleep(retry_delay)
-                        retry_delay *= 2 
-                        continue
-                    else:
-                        logging.error(f"❌ Modelo sobrecarregado após {max_retries} tentativas")
-                else:
-                    logging.error(f"❌ Erro ao avaliar: {error_msg}")
-        
-        # Se chegou aqui, todas as tentativas falharam
-        return {
-            "error": "Falha após todas as tentativas",
-            "factual_consistency": {"score": 0, "justification": "Erro na avaliação"},
-            "instruction_following": {"score": 0, "justification": "Erro na avaliação"},
-            "domain_knowledge": {"score": 0, "justification": "Erro na avaliação"},
-            "context_precision": {"score": 0, "justification": "Erro na avaliação"},
-            "context_recall": {"score": 0, "justification": "Erro na avaliação"}
-        }
-    
     def evaluate_single_question(self, question_id: int, skip_judge: bool = False):
         """Avalia uma única pergunta."""
         
@@ -244,11 +158,11 @@ Avalie a qualidade da resposta segundo os critérios abaixo, usando escala de 1 
                 manual_context_str = "\n\n--- CHUNK SEPARATOR ---\n\n".join(manual_result['context'][:5])
                 self.presenter.print_judge_info(manual_context_str)
                 
-                manual_evaluation = self.judge_response(
-                    question, 
-                    manual_context_str, 
-                    manual_result['answer'],
-                    "RAG Manual"
+                manual_evaluation = self.judge.judge_response(
+                    question=question, 
+                    context=manual_context_str, 
+                    answer=manual_result['answer'],
+                    system_name="RAG Manual"
                 )
                 manual_result['evaluation'] = manual_evaluation
                 
@@ -279,11 +193,11 @@ Avalie a qualidade da resposta segundo os critérios abaixo, usando escala de 1 
                 file_search_context_str = "\n\n--- CHUNK SEPARATOR ---\n\n".join(file_search_result['context'][:5])
                 self.presenter.print_judge_info(file_search_context_str)
                 
-                file_search_evaluation = self.judge_response(
-                    question,
-                    file_search_context_str,
-                    file_search_result['answer'],
-                    "File Search RAG"
+                file_search_evaluation = self.judge.judge_response(
+                    question=question,
+                    context=file_search_context_str,
+                    answer=file_search_result['answer'],
+                    system_name="File Search RAG"
                 )
                 file_search_result['evaluation'] = file_search_evaluation
                 

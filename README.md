@@ -13,6 +13,8 @@ O design atual foca no script `evaluate_light.py`, que é ideal para execuções
 ```
 01RAG/
 ├── evaluate_light.py           # ✅ Script principal para avaliação interativa
+├── ai_judge.py                 # ✅ NOVO: Módulo AI Judge com LiteLLM (agnóstico)
+├── test_litellm_providers.py   # ✅ NOVO: Teste isolado de provedores
 ├── file_search_rag.py          # Implementação do File Search RAG
 ├── retriever.py                # Componentes do RAG Manual
 ├── augmentation.py             # ...
@@ -20,7 +22,8 @@ O design atual foca no script `evaluate_light.py`, que é ideal para execuções
 ├── test_config.json            # Configuração das perguntas de teste
 ├── console_presenter.py        # Módulo para apresentação no console
 ├── report_generator.py         # Módulo para salvar relatórios
-├── EVALUATION_README.md        # 👈 Este arquivo
+├── .env.example                # Template de variáveis de ambiente
+├── README.md                   # Este arquivo
 └── evaluation_results/         # 📂 Diretório onde os resultados são salvos
 ```
 
@@ -102,7 +105,7 @@ Você verá um menu de opções:
 ```
 
 -   **`L`**: Mostra a lista de todas as perguntas carregadas do `test_config.json`.
--   **`1-10`**: Digite o número da pergunta para executar a avaliação completa, incluindo a análise de qualidade pelo "AI Judge" (Gemini 2.5 Pro).
+-   **`1-10`**: Digite o número da pergunta para executar a avaliação completa, incluindo a análise de qualidade pelo "AI Judge" (configurável via LiteLLM - padrão: Cerebras).
 -   **`Q`**: Permite testar a recuperação e geração de respostas de ambos os sistemas RAG sem invocar o AI Judge. É mais rápido e não consome chamadas extras à API.
 -   **`S`**: Encerra o programa.
 
@@ -113,9 +116,140 @@ Para cada pergunta avaliada, o sistema gera automaticamente dois arquivos no dir
 1.  **`evaluation_single_q<ID>_<timestamp>.json`**: Contém todos os dados brutos da avaliação, incluindo respostas, chunks, latência e scores.
 2.  **`evaluation_single_q<ID>_<timestamp>.md`**: Um relatório em Markdown, formatado para fácil leitura, com a comparação lado a lado dos dois sistemas.
 
+## 🔄 Usando LiteLLM para Alterar o AI Judge
+
+A partir da versão atual, o sistema de avaliação utiliza **LiteLLM** para desacoplar o AI Judge de um único provedor. Isso significa que você pode facilmente trocar entre diferentes provedores de LLM (Cerebras, OpenAI, Anthropic, etc.) sem alterar o código principal.
+
+### Passo 1: Testar o Provedor Isoladamente
+
+Antes de integrar um novo provedor ao sistema de avaliação, teste-o de forma isolada usando o script `test_litellm_providers.py`:
+
+```bash
+python test_litellm_providers.py
+```
+
+### Passo 2: Configurar o Provedor (test_litellm_providers.py)
+
+Edite o arquivo `test_litellm_providers.py` e altere as linhas de configuração do provedor:
+
+**Linha 44** - Altere o `"model"` para o modelo de sua escolha:
+```python
+"model": "cerebras/gpt-oss-120b",  # Exemplo com Cerebras
+```
+
+Para encontrar o formato correto do seu modelo desejado, consulte a documentação oficial:
+👉 **https://docs.litellm.ai/docs/providers**
+
+Exemplos de formatos válidos:
+- **Cerebras**: `"cerebras/gpt-oss-120b"` ou `"cerebras/llama-3.3-70b"`
+- **OpenAI**: `"openai/gpt-4o"` ou `"openai/gpt-4-turbo"`
+- **Anthropic**: `"anthropic/claude-3-sonnet-20240229"`
+- **Google Gemini**: `"vertex_ai/gemini-2.5-pro"`
+
+**Linha 45** - Altere a `"api_key_env"` para a variável de ambiente que você definiu no seu `.env`:
+```python
+"api_key_env": "CEREBRAS_API_KEY",  # Exemplo para Cerebras
+```
+
+Se você definiu no seu `.env`:
+```env
+# Exemplos
+CEREBRAS_API_KEY="sua-chave-aqui"
+OPENAI_API_KEY="sua-chave-aqui"
+ANTHROPIC_API_KEY="sua-chave-aqui"
+GOOGLE_API_KEY="sua-chave-aqui"
+```
+
+### Passo 3: Executar o Teste
+
+```bash
+python test_litellm_providers.py
+```
+
+### O Que o Teste Mostra
+
+O script `test_litellm_providers.py` executa três validações para seu provedor:
+
+| Teste | O Que Valida | Esperado |
+|-------|-------------|----------|
+| **Teste Básico** | Conectividade e resposta simples | ✅ Resposta "OK" em poucos segundos |
+| **Teste JSON Mode** | Resposta estruturada em JSON (crítico para o AI Judge) | ✅ JSON válido parseado corretamente |
+| **Teste Streaming** | Streaming de respostas (opcional, não bloqueante) | ✅ Chunks recebidos sequencialmente |
+
+**Exemplo de saída bem-sucedida:**
+```
+================================================================================
+📊 RESUMO DE TESTES: PROVIDER
+================================================================================
+
+✅ Passaram: 2/2
+❌ Falharam: 0/2
+⊘ Pulados: 0/2
+
+✅ BASIC: success
+✅ JSON_MODE: success
+
+✅ TODOS OS TESTES PASSARAM!
+
+🎉 O provedor está pronto para integração com o AI Judge.
+```
+
+### Passo 4: Configurar no test_config.json
+
+Após o teste passar com sucesso, edite o arquivo `test_config.json` e altere a linha do `ai_judge_model`:
+
+**Linha 88** - Altere para o seu provedor:
+```json
+"ai_judge_model": "cerebras/gpt-oss-120b",
+"ai_judge_temperature": 0.1
+```
+
+### Passo 5: Executar a Avaliação com o Novo Provedor
+
+```bash
+python evaluate_light.py
+```
+
+Escolha uma pergunta para avaliar (por exemplo, digite `1` para avaliar a pergunta 1).
+
+O sistema agora usará seu provedor configurado via LiteLLM para realizar as avaliações do AI Judge.
+
+### Exemplo Completo: Migrando para OpenAI
+
+Se você quiser usar OpenAI em vez de Cerebras, siga este exemplo:
+
+**1. Configure seu `.env`:**
+```env
+GOOGLE_API_KEY="sua-chave-gemini"
+OPENAI_API_KEY="sk-sua-chave-openai"
+```
+
+**2. Edite `test_litellm_providers.py` (linhas 44-45):**
+```python
+"model": "openai/gpt-4o",
+"api_key_env": "OPENAI_API_KEY",
+```
+
+**3. Execute o teste:**
+```bash
+python test_litellm_providers.py
+```
+
+**4. Se passar, edite `test_config.json` (linha 88):**
+```json
+"ai_judge_model": "openai/gpt-4o",
+```
+
+**5. Execute a avaliação:**
+```bash
+python evaluate_light.py
+```
+
+---
+
 ## 📋 Critérios de Avaliação
 
-O sistema avalia **5 critérios** usando um "AI Judge" (Gemini 2.5 Pro):
+O sistema avalia **5 critérios** usando um "AI Judge" (configurável via LiteLLM):
 
 | Critério | Peso | Descrição |
 |---|---|---|
